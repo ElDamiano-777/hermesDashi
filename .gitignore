@@ -1,0 +1,16 @@
+.env
+auth.json
+auth.lock
+*.db
+*.db-shm
+*.db-wal
+logs/
+sessions/
+cache/
+audio_cache/
+image_cache/
+checkpoints/
+models_dev_cache.json
+node/
+.venv/
+node/

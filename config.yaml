@@ -356,3 +356,4 @@ voice:
   silence_duration: 3.0
   silence_threshold: 200
 whatsapp: {}
+TELEGRAM_HOME_CHANNEL: '-1003969468087'

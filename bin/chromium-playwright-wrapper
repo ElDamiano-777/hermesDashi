@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+browser_bin=""
+for candidate in "$HOME"/.cache/ms-playwright/chromium-*/chrome-linux64/chrome; do
+    if [[ -x "$candidate" ]]; then
+        browser_bin="$candidate"
+    fi
+done
+
+if [[ -z "$browser_bin" ]]; then
+    echo "No Playwright Chromium binary found under $HOME/.cache/ms-playwright" >&2
+    exit 1
+fi
+
+args=("$@")
+if [[ " ${args[*]} " != *" --no-sandbox "* ]]; then
+    args=(--no-sandbox "${args[@]}")
+fi
+
+if [[ -n "${DISPLAY:-}" ]]; then
+    exec "$browser_bin" "${args[@]}"
+fi
+
+exec xvfb-run -a --server-args="-screen 0 1280x720x24" "$browser_bin" "${args[@]}"

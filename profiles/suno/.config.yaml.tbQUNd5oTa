@@ -1,0 +1,68 @@
+model:
+  provider: copilot
+  model: gpt-4.1
+auxiliary:
+  vision:
+    provider: copilot
+    model: gpt-4o
+    base_url: ''
+    api_key: ''
+    timeout: 30
+    download_timeout: 30
+  web_extract:
+    provider: copilot
+    model: gpt-4.1
+    base_url: ''
+    api_key: ''
+    timeout: 360
+  compression:
+    provider: copilot
+    model: gpt-4.1
+    base_url: ''
+    api_key: ''
+    timeout: 120
+  session_search:
+    provider: copilot
+    model: gpt-4.1
+    base_url: ''
+    api_key: ''
+    timeout: 30
+  skills_hub:
+    provider: copilot
+    model: gpt-4.1
+    base_url: ''
+    api_key: ''
+    timeout: 30
+  approval:
+    provider: copilot
+    model: gpt-4.1
+    base_url: ''
+    api_key: ''
+    timeout: 30
+  mcp:
+    provider: copilot
+    model: gpt-4.1
+    base_url: ''
+    api_key: ''
+    timeout: 30
+  flush_memories:
+    provider: copilot
+    model: gpt-4.1
+    base_url: ''
+    api_key: ''
+    timeout: 30
+platform_toolsets:
+  telegram:
+  - hermes-telegram
+  - messaging
+terminal:
+  backend: local
+  cwd: /home/dashi/.hermes/profiles/suno
+group_sessions_per_user: true
+thread_sessions_per_user: true
+unauthorized_dm_behavior: ignore
+telegram:
+  require_mention: true
+  allowed_chats:
+  - '-1003969468087:59'
+TELEGRAM_HOME_CHANNEL: '-1003969468087'

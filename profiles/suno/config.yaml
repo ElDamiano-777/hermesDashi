@@ -52,8 +52,8 @@ auxiliary:
     api_key: ''
     timeout: 30
 plugins:
-  disabled:
-  - suno
+  enabled:
+  - suno-local
 platform_toolsets:
   telegram:
   - hermes-telegram

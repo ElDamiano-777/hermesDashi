@@ -1,0 +1,17 @@
+name: suno-local
+version: 0.1.0
+description: Suno generation plugin with setup, session status, and API-first generation flow
+provides_tools:
+  - suno_status
+  - suno_setup
+  - suno_generate
+  - suno_preview_state
+  - suno_feature_action
+provides_commands:
+  - suno
+requires_env:
+  - name: SUNO_GOOGLE_EMAIL
+    description: Google account email for Suno login automation
+  - name: SUNO_GOOGLE_PASSWORD
+    description: Google account password for Suno login automation
+    secret: true

@@ -9,8 +9,8 @@ Arbeitsregel: Jede Phase wird erst nach Agent-Verifikation abgehakt.
 ## Phasen
 
 - [x] Phase 1: Linux-Voraussetzungen und Headless-Browser vorbereiten
-- [ ] Phase 2: Selektive Suno-Migration aus dem Backup uebernehmen
-- [ ] Phase 3: Pfade anpassen und Suno-Plugin aktivieren
+- [x] Phase 2: Selektive Suno-Migration aus dem Backup uebernehmen
+- [x] Phase 3: Pfade anpassen und Suno-Plugin aktivieren
 - [ ] Phase 4: Hermes-, Login-, Generate- und Telegram-Checks dokumentieren
 
 ## Ausschluesse

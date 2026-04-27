@@ -1,0 +1,15 @@
+{
+  "queries": [
+    "AI Trading Bot",
+    "Claude Trading",
+    "AI Signal Generator",
+    "LLM Trading Review"
+  ],
+  "global_search": true,
+  "max_videos_per_run": 5,
+  "output_languages": [
+    "de",
+    "en"
+  ],
+  "notes": "Search globally across all languages. End-user output only in German or English markdown."
+}

@@ -1,0 +1,137 @@
+{
+  "jobs": [
+    {
+      "id": "source_intel_daily",
+      "name": "CEX Trader Source Intelligence Daily",
+      "prompt": "Lies den Script-Output wortwoertlich. Fasse auf Deutsch kurz zusammen, welche neuen YouTube-Quellen verarbeitet wurden, welche Research-Learnings entstanden sind und welche Punkte fuer CEX-Papertrading relevant sind. Wenn es nichts Neues gab, antworte mit [SILENT].",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "source_intelligence_youtube.py",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 7 * * *",
+        "display": "0 7 * * *"
+      },
+      "schedule_display": "0 7 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": false,
+      "state": "paused",
+      "paused_at": null,
+      "paused_reason": "Pending Telegram gateway verification",
+      "created_at": "2026-04-27T00:00:00+00:00",
+      "next_run_at": null,
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "telegram:-1003969468087:1564",
+      "origin": null
+    },
+    {
+      "id": "cex_scan_4h",
+      "name": "CEX Trader Markt-Scan (4h)",
+      "prompt": "Lies den Script-Output wortwoertlich und liefere ein kompaktes Markt-Update auf Deutsch. Nenne nur echte Signale, offene/geschlossene Trades, Portfolio-Stand, Guardrails und auffaellige Risiken. Keine Erfindungen, kein Marketing.",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "cex_trader_scan.py",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 */4 * * *",
+        "display": "0 */4 * * *"
+      },
+      "schedule_display": "0 */4 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": false,
+      "state": "paused",
+      "paused_at": null,
+      "paused_reason": "Pending Telegram gateway verification",
+      "created_at": "2026-04-27T00:00:00+00:00",
+      "next_run_at": null,
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "telegram:-1003969468087:1564",
+      "origin": null
+    },
+    {
+      "id": "cex_report_daily",
+      "name": "CEX Trader Tages-Report (21:00)",
+      "prompt": "Fasse den Report auf Deutsch knapp zusammen: Portfolio, offene Positionen, Trades der letzten 7 Tage, Scan-Aktivitaet, Research-Learnings, Runtime-Status. Nutze nur echte Zahlen.",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "cex_trader_report.py",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 21 * * *",
+        "display": "0 21 * * *"
+      },
+      "schedule_display": "0 21 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": false,
+      "state": "paused",
+      "paused_at": null,
+      "paused_reason": "Pending Telegram gateway verification",
+      "created_at": "2026-04-27T00:00:00+00:00",
+      "next_run_at": null,
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "telegram:-1003969468087:1564",
+      "origin": null
+    },
+    {
+      "id": "cex_optimize_weekly",
+      "name": "CEX Trader Wochen-Optimierung (Sonntag)",
+      "prompt": "Erstelle einen Wochenreview auf Deutsch mit Kennzahlen, Top/Flop-Setups, Learnings aus Experimenten und klaren Empfehlungen. Keine autonome Config-Aenderung ohne harte Evidenz.",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "cex_trader_optimize.py",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 10 * * 0",
+        "display": "0 10 * * 0"
+      },
+      "schedule_display": "0 10 * * 0",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": false,
+      "state": "paused",
+      "paused_at": null,
+      "paused_reason": "Pending Telegram gateway verification",
+      "created_at": "2026-04-27T00:00:00+00:00",
+      "next_run_at": null,
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "telegram:-1003969468087:1564",
+      "origin": null
+    }
+  ],
+  "updated_at": "2026-04-27T00:00:00+00:00"
+}

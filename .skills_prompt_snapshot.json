@@ -133,6 +133,10 @@
       1776879678641249675,
       12542
     ],
+    "mcp/switch-hermes-model/SKILL.md": [
+      1777312950130669341,
+      1243
+    ],
     "media/gif-search/SKILL.md": [
       1776879678641249675,
       2687
@@ -828,6 +832,19 @@
       "category": "mcp",
       "frontmatter_name": "native-mcp",
       "description": "Built-in MCP (Model Context Protocol) client that connect...",
+      "platforms": [],
+      "conditions": {
+        "fallback_for_toolsets": [],
+        "requires_toolsets": [],
+        "fallback_for_tools": [],
+        "requires_tools": []
+      }
+    },
+    {
+      "skill_name": "switch-hermes-model",
+      "category": "mcp",
+      "frontmatter_name": "switch-hermes-model",
+      "description": "Wechsel das Standardmodell in Hermes per CLI und verifizi...",
       "platforms": [],
       "conditions": {
         "fallback_for_toolsets": [],

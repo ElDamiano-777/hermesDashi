@@ -1,0 +1,16 @@
+{
+  "discovery_provider": "youtube_search",
+  "queries": [
+    "AI Trading Bot",
+    "Claude Trading",
+    "AI Signal Generator",
+    "LLM Trading Review"
+  ],
+  "global_search": true,
+  "max_videos_per_run": 4,
+  "output_languages": [
+    "de",
+    "en"
+  ],
+  "notes": "Direct YouTube search discovery without Tavily. End-user output only in German or English markdown."
+}

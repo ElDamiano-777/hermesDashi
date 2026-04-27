@@ -574,6 +574,12 @@ def load_gateway_config() -> GatewayConfig:
                     bridged["require_mention"] = platform_cfg["require_mention"]
                 if "free_response_channels" in platform_cfg:
                     bridged["free_response_channels"] = platform_cfg["free_response_channels"]
+                if "free_response_chats" in platform_cfg:
+                    bridged["free_response_chats"] = platform_cfg["free_response_chats"]
+                if "allowed_chats" in platform_cfg:
+                    bridged["allowed_chats"] = platform_cfg["allowed_chats"]
+                if "ignored_threads" in platform_cfg:
+                    bridged["ignored_threads"] = platform_cfg["ignored_threads"]
                 if "mention_patterns" in platform_cfg:
                     bridged["mention_patterns"] = platform_cfg["mention_patterns"]
                 if "dm_policy" in platform_cfg:
@@ -678,6 +684,11 @@ def load_gateway_config() -> GatewayConfig:
                     if isinstance(frc, list):
                         frc = ",".join(str(v) for v in frc)
                     os.environ["TELEGRAM_FREE_RESPONSE_CHATS"] = str(frc)
+                allowed_chats = telegram_cfg.get("allowed_chats")
+                if allowed_chats is not None and not os.getenv("TELEGRAM_ALLOWED_CHATS"):
+                    if isinstance(allowed_chats, list):
+                        allowed_chats = ",".join(str(v) for v in allowed_chats)
+                    os.environ["TELEGRAM_ALLOWED_CHATS"] = str(allowed_chats)
                 ignored_threads = telegram_cfg.get("ignored_threads")
                 if ignored_threads is not None and not os.getenv("TELEGRAM_IGNORED_THREADS"):
                     if isinstance(ignored_threads, list):

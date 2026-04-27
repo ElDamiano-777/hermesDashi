@@ -2223,6 +2223,14 @@ class TelegramAdapter(BasePlatformAdapter):
             return {str(part).strip() for part in raw if str(part).strip()}
         return {part.strip() for part in str(raw).split(",") if part.strip()}
 
+    def _telegram_allowed_chats(self) -> set[str]:
+        raw = self.config.extra.get("allowed_chats")
+        if raw is None:
+            raw = os.getenv("TELEGRAM_ALLOWED_CHATS", "")
+        if isinstance(raw, list):
+            return {str(part).strip() for part in raw if str(part).strip()}
+        return {part.strip() for part in str(raw).split(",") if part.strip()}
+
     def _telegram_ignored_threads(self) -> set[int]:
         raw = self.config.extra.get("ignored_threads")
         if raw is None:
@@ -2243,6 +2251,16 @@ class TelegramAdapter(BasePlatformAdapter):
             except (TypeError, ValueError):
                 logger.warning("[%s] Ignoring invalid Telegram thread id: %r", self.name, value)
         return ignored
+
+    def _telegram_message_target(self, message: Message) -> str:
+        chat_id = str(getattr(getattr(message, "chat", None), "id", ""))
+        thread_id = getattr(message, "message_thread_id", None)
+        if thread_id is not None:
+            try:
+                return f"{chat_id}:{int(thread_id)}"
+            except (TypeError, ValueError):
+                logger.warning("[%s] Ignoring non-numeric Telegram message_thread_id: %r", self.name, thread_id)
+        return chat_id
 
     def _compile_mention_patterns(self) -> List[re.Pattern]:
         """Compile optional regex wake-word patterns for group triggers."""
@@ -2365,7 +2383,11 @@ class TelegramAdapter(BasePlatformAdapter):
         recognised as mentions by :meth:`_message_mentions_bot`.
         """
         if not self._is_group_chat(message):
-            return True
+            allowed = self._telegram_allowed_chats()
+            return not allowed or self._telegram_message_target(message) in allowed
+        allowed = self._telegram_allowed_chats()
+        if allowed and self._telegram_message_target(message) not in allowed:
+            return False
         thread_id = getattr(message, "message_thread_id", None)
         if thread_id is not None:
             try:

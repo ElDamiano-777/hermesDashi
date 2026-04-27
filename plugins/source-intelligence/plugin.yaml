@@ -1,0 +1,9 @@
+name: source-intelligence
+version: 0.1.0
+description: Source intake, transcript analysis, signal extraction, and domain-specific insight projection
+provides_tools:
+  - source_intelligence_status
+  - source_intelligence_youtube
+  - source_intelligence_ingest
+pip_dependencies:
+  - youtube-transcript-api

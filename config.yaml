@@ -51,7 +51,7 @@ agent:
   verbose: false
 approvals:
   cron_mode: deny
-  mode: manual
+  mode: smart
   timeout: 60
 auxiliary:
   approval:
@@ -226,7 +226,7 @@ memory:
 model:
   api_mode: chat_completions
   base_url: https://api.githubcopilot.com
-  default: gpt-4.1
+  default: gpt-5.4
   provider: copilot
 network:
   force_ipv4: false
@@ -249,6 +249,8 @@ platform_toolsets:
   whatsapp:
   - hermes-whatsapp
 plugins:
+  enabled:
+  - source-intelligence
   hermes-memory-store:
     auto_extract: 'true'
     db_path: ~/.hermes/memory_store.db
@@ -299,7 +301,15 @@ stt:
     model: whisper-1
   provider: local
 telegram:
+  allowed_chats:
+  - '-1003969468087'
+  - '-1003969468087:57'
   channel_prompts: {}
+  ignored_threads:
+  - 58
+  - 59
+  - 60
+  - 1564
 terminal:
   auto_source_bashrc: true
   backend: local

@@ -29,6 +29,7 @@ pairing/
 logs/
 sessions/
 skills/
+memories/
 cache/
 audio_cache/
 image_cache/
@@ -37,6 +38,10 @@ models_dev_cache.json
 browser_sessions/
 profiles/*/browser/
 profiles/*/output/
+profiles/*/data/
+profiles/*/sandboxes/
+profiles/*/cron/*.lock
+profiles/*/memories/
 plugins/*/profile/
 node/
 .venv/
@@ -45,3 +50,8 @@ hermes-old-setup/
 .git-backups/
 profiles/suno/plugins/suno-local/profile/
 profiles/suno/plugins/suno-local/profile-reset-backups/
+
+# Source intelligence runtime output
+data/source-intelligence/*/reports/*.md
+data/source-intelligence/*/state/
+data/source-intelligence/*/transcripts/

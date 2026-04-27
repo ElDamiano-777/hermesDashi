@@ -20,11 +20,11 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_ROOT = Path(__file__).resolve().parent
 if __package__:
-    from .core.workflow import SunoPaths, SunoWorkflow
+    from .core.workflow import BROWSER_AUTOMATION_BACKEND, SunoPaths, SunoWorkflow
 else:
     if str(PACKAGE_ROOT) not in sys.path:
         sys.path.insert(0, str(PACKAGE_ROOT))
-    from core.workflow import SunoPaths, SunoWorkflow
+    from core.workflow import BROWSER_AUTOMATION_BACKEND, SunoPaths, SunoWorkflow
 
 PLUGIN_DIR = Path(__file__).resolve().parent
 ENV_PATH = PLUGIN_DIR / ".env"
@@ -560,6 +560,7 @@ def _generate_command(argv: list[str]) -> int:
         _log("Session gueltig, starte direkte Generierung.")
     else:
         _log(f"Session ungueltig ({reason}), hole neue Anmeldung.")
+    _log(f"Browser-Automation-Backend: {BROWSER_AUTOMATION_BACKEND}")
 
     _log(
         "Generiere Song mit Parametern: "
@@ -569,6 +570,7 @@ def _generate_command(argv: list[str]) -> int:
     )
 
     managed_browser: subprocess.Popen[str] | None = None
+    keep_browser_open = False
     use_browser_for_generate = bool(args.force_login and not session_ok)
     try:
         if args.force_login or not session_ok:
@@ -593,7 +595,7 @@ def _generate_command(argv: list[str]) -> int:
                     _log("Autorisierung fehlgeschlagen (Google-Login/2FA wurde abgelehnt).")
                     _log("Bitte versuche den Login erneut und bestaetige die Google-Autorisierung.")
                     return 1
-                _log("Login fehlgeschlagen.")
+                _log(f"Login fehlgeschlagen: error={login_error or 'unknown'} info={login_info or 'n/a'}")
                 return 1
             _log("Login erfolgreich.")
 
@@ -627,6 +629,18 @@ def _generate_command(argv: list[str]) -> int:
             except Exception as exc:
                 if args.debug:
                     _log(f"Konnte P1 nicht vorab holen: {exc}")
+                if "Manual captcha required:" in str(exc):
+                    keep_browser_open = True
+                    _log(
+                        "Manuelle hCaptcha-Loesung erforderlich. Der Browser bleibt offen. "
+                        "Bitte Challenge im Browser abschliessen und den Lauf danach erneut starten."
+                    )
+                    return 1
+                if "Failed to harvest fresh P1 token via CDP" in str(exc):
+                    _log(
+                        "Kein frischer P1-Token abgegriffen. Wenn im Browser eine hCaptcha-Challenge sichtbar ist, "
+                        "muss sie manuell abgeschlossen werden, waehrend der Browser offen bleibt."
+                    )
 
             _stop_managed_browser(managed_browser)
             managed_browser = None
@@ -689,6 +703,7 @@ def _generate_command(argv: list[str]) -> int:
             msg = str(exc)
             retryable = (
                 "captcha token required" in msg
+                or "Captcha check failed: status=401" in msg
                 or "Token validation failed" in msg
                 or "status=422" in msg
                 or "Failed to harvest fresh P1 token via CDP" in msg
@@ -719,8 +734,19 @@ def _generate_command(argv: list[str]) -> int:
                 _log(f"Song(s) erfolgreich erstellt. Ausgabe: {out_dir}")
                 return 0
             except Exception as exc2:
-                if args.debug:
-                    _log(f"fast retry failed: {exc2}")
+                _log(f"Captcha/P1-Sofort-Retry fehlgeschlagen: {exc2}")
+                if "Manual captcha required:" in str(exc2):
+                    keep_browser_open = True
+                    _log(
+                        "Manuelle hCaptcha-Loesung erforderlich. Der Browser bleibt offen. "
+                        "Bitte Challenge im Browser abschliessen und den Lauf danach erneut starten."
+                    )
+                    return 1
+                if "Failed to harvest fresh P1 token via CDP" in str(exc2):
+                    _log(
+                        "Der Browser hat keinen neuen P1-Token geliefert. Falls hCaptcha sichtbar ist, "
+                        "bitte die Challenge im offenen Browser manuell loesen und den Lauf erneut starten."
+                    )
 
             # Last resort: refresh browser-side session once, then final retry.
             _log("Erneuere Browser-Session fuer P1...")
@@ -743,7 +769,7 @@ def _generate_command(argv: list[str]) -> int:
                     _log("Fallback-Login fehlgeschlagen: Google-Autorisierung wurde abgelehnt.")
                     _log("Bitte versuche den Login erneut und bestaetige die Google-Autorisierung.")
                     return 1
-                _log("Fallback-Login fehlgeschlagen.")
+                _log(f"Fallback-Login fehlgeschlagen: error={login_error or 'unknown'} info={login_info or 'n/a'}")
                 return 1
 
             _run_wrapped(
@@ -761,9 +787,10 @@ def _generate_command(argv: list[str]) -> int:
             _log(f"Song(s) erfolgreich erstellt. Ausgabe: {out_dir}")
             return 0
     finally:
-        if managed_browser is not None:
+        if managed_browser is not None and not keep_browser_open:
             _log("Schliesse Browser und raeume auf...")
-        _stop_managed_browser(managed_browser)
+        if not keep_browser_open:
+            _stop_managed_browser(managed_browser)
 
 
 def main(argv: list[str] | None = None) -> int:

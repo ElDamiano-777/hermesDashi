@@ -29,6 +29,13 @@ def _read_summary(out_dir: str | Path | None) -> dict[str, Any] | None:
         return None
 
 
+def _resolve_out_dir(out_dir: str | Path | None) -> Path:
+    value = Path(out_dir or "outputs/suno_plugin")
+    if not value.is_absolute():
+        value = suno.REPO_ROOT / value
+    return value
+
+
 def _run_suno_main(argv: list[str]) -> dict[str, Any]:
     out_buf = io.StringIO()
     err_buf = io.StringIO()
@@ -187,13 +194,13 @@ def suno_generate(args: dict[str, Any], **kwargs: Any) -> str:
 
         result = _run_suno_main(argv)
         if result["ok"]:
-            out_dir = args.get("out_dir") or "outputs/suno_plugin"
+            out_dir = _resolve_out_dir(args.get("out_dir"))
             summary = _read_summary(out_dir)
             return _json(
                 {
                     "ok": True,
                     "exit_code": result["exit_code"],
-                    "out_dir": str(Path(out_dir)),
+                    "out_dir": str(out_dir),
                     "summary": summary,
                     "stdout": result["stdout"],
                 }

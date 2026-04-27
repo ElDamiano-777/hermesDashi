@@ -32,6 +32,12 @@ class SunoWorkflow:
     def __init__(self, paths: SunoPaths) -> None:
         self.paths = paths
 
+    def _plugin_dotenv_path(self) -> Path:
+        artifact_dir = self.paths.storage_state.parent
+        if artifact_dir.name == "artifacts" and artifact_dir.parent.name == "profile":
+            return artifact_dir.parent.parent / ".env"
+        return Path(".env")
+
     @staticmethod
     def _load_dotenv_values(env_path: Path) -> dict[str, str]:
         values: dict[str, str] = {}
@@ -543,7 +549,7 @@ class SunoWorkflow:
         target_url: str = "https://suno.com/create",
         close_browser_after_login: bool = False,
     ) -> dict[str, Any]:
-        dotenv_values = self._load_dotenv_values(Path(".env"))
+        dotenv_values = self._load_dotenv_values(self._plugin_dotenv_path())
         email = (os.environ.get("SUNO_GOOGLE_EMAIL", "").strip() or dotenv_values.get("SUNO_GOOGLE_EMAIL", "").strip() or None)
         password = (os.environ.get("SUNO_GOOGLE_PASSWORD", "").strip() or dotenv_values.get("SUNO_GOOGLE_PASSWORD", "").strip() or None)
 

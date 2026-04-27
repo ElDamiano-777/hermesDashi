@@ -74,13 +74,22 @@ After both messages, clear the preview state via `suno_preview_state` and reply 
 - Always send both generated files.
 - Use `MEDIA:<absolute_path>` for audio delivery.
 - Never use `terminal`, pipes, `echo`, or `execute_code` to apply preview edits.
+- Telegram topic replies only work when the profile-local gateway is really running under `HERMES_HOME=/home/dashi/.hermes/profiles/suno`.
+- If outgoing Telegram sends succeed but incoming topic messages do not trigger the workflow, suspect stale `profiles/suno/gateway.pid` or `profiles/suno/gateway_state.json` before changing Telegram topic config.
 
 ## Session Handling
 
-If `suno_generate` fails with an auth/session problem:
+If `suno_generate` fails with a captcha/P1 refresh problem such as `Captcha check failed`,
+`Generate blocked: captcha token required`, or `Failed to harvest fresh P1 token via CDP`:
 
 1. Retry once with `force_login: true`
-2. If that still fails, send `⚠️ Suno-Session abgelaufen. Bitte melde dich im Browser an.`
+2. If that still fails, do not describe it as an expired session when Suno is still open/logged in. Send `⚠️ Suno-Captcha/P1-Refresh fehlgeschlagen. Suno ist meist noch eingeloggt, aber nach Create erscheint eine hCaptcha-Challenge und es wurde kein frischer P1-Token abgegriffen. Bitte Suno im Browser oeffnen, die Challenge bzw. einen manuellen Create-Versuch einmal abschliessen und danach hier erneut mit OK antworten.`
+
+If `suno_generate` fails with an auth/session problem such as `missing storage state`,
+`no working bearer token`, or an explicit session check failure:
+
+1. Retry once with `force_login: true`
+2. If that still fails, and only if there is no evidence of a live logged-in Suno Create page, send `⚠️ Suno-Session abgelaufen. Bitte melde dich im Browser an.`
 3. After confirmation, retry once without changing the generation parameters
 
 Use `suno_status` when you need a proactive readiness check.

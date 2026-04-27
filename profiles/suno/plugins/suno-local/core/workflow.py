@@ -14,7 +14,9 @@ from pathlib import Path
 from typing import Any
 
 import requests
-from playwright.async_api import BrowserContext, Page, async_playwright
+from patchright.async_api import BrowserContext, Page, async_playwright
+
+BROWSER_AUTOMATION_BACKEND = "patchright"
 
 from .auth_bundle import write_auth_bundle
 
@@ -31,6 +33,142 @@ class SunoPaths:
 class SunoWorkflow:
     def __init__(self, paths: SunoPaths) -> None:
         self.paths = paths
+
+    def _plugin_dotenv_path(self) -> Path:
+        artifact_dir = self.paths.storage_state.parent
+        if artifact_dir.name == "artifacts" and artifact_dir.parent.name == "profile":
+            return artifact_dir.parent.parent / ".env"
+        return Path(".env")
+
+    def _artifact_dir(self) -> Path:
+        artifact_dir = self.paths.storage_state.parent
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        return artifact_dir
+
+    def _debug_artifact_path(self, phase: str, suffix: str) -> Path:
+        safe_phase = re.sub(r"[^a-z0-9._-]+", "-", str(phase).strip().lower()).strip("-") or "debug"
+        stamp = time.strftime("%Y%m%d_%H%M%S")
+        return self._artifact_dir() / f"{stamp}_{safe_phase}_{uuid.uuid4().hex[:8]}{suffix}"
+
+    def _write_debug_json(self, phase: str, payload: dict[str, Any]) -> Path:
+        out_path = self._debug_artifact_path(phase, ".json")
+        out_path.write_text(json.dumps(payload, indent=2, ensure_ascii=True), encoding="utf-8")
+        return out_path
+
+    async def _capture_page_debug_artifacts(
+        self,
+        page: Page,
+        phase: str,
+        extra: dict[str, Any] | None = None,
+    ) -> dict[str, str]:
+        screenshot_path = self._debug_artifact_path(phase, ".png")
+        state_path = self._debug_artifact_path(phase, ".json")
+
+        snapshot: dict[str, Any] = {
+            "phase": phase,
+            "ts": int(time.time() * 1000),
+            "storage_state": str(self.paths.storage_state),
+            "manual_capture": str(self.paths.manual_capture),
+            "extra": extra or {},
+        }
+        try:
+            snapshot["url"] = page.url
+        except Exception as exc:
+            snapshot["url_error"] = str(exc)
+        try:
+            snapshot["title"] = await page.title()
+        except Exception as exc:
+            snapshot["title_error"] = str(exc)
+        try:
+            snapshot["viewport"] = page.viewport_size
+        except Exception as exc:
+            snapshot["viewport_error"] = str(exc)
+        try:
+            snapshot["context_pages"] = [
+                {
+                    "url": pg.url,
+                    "title": await pg.title(),
+                }
+                for pg in page.context.pages[:10]
+            ]
+        except Exception as exc:
+            snapshot["context_pages_error"] = str(exc)
+        try:
+            snapshot["frames"] = [
+                {
+                    "name": frame.name,
+                    "url": frame.url,
+                }
+                for frame in page.frames[:20]
+            ]
+        except Exception as exc:
+            snapshot["frames_error"] = str(exc)
+        try:
+            snapshot["body_text"] = (await page.locator("body").inner_text(timeout=3000))[:6000]
+        except Exception as exc:
+            snapshot["body_text_error"] = str(exc)
+        try:
+            snapshot["dom_state"] = await page.evaluate(
+                """
+                () => ({
+                  readyState: document.readyState,
+                  title: document.title,
+                  location: document.location.href,
+                  iframes: Array.from(document.querySelectorAll('iframe')).slice(0, 20).map((iframe, idx) => ({
+                    idx,
+                    src: iframe.getAttribute('src') || '',
+                    title: iframe.getAttribute('title') || '',
+                    ariaLabel: iframe.getAttribute('aria-label') || '',
+                    visible: (() => {
+                      const rect = iframe.getBoundingClientRect();
+                      const style = getComputedStyle(iframe);
+                      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+                    })(),
+                  })),
+                  buttons: Array.from(document.querySelectorAll('button')).slice(0, 40).map((button) => ({
+                    text: (button.textContent || '').trim().slice(0, 120),
+                    ariaLabel: button.getAttribute('aria-label') || '',
+                    disabled: !!button.disabled,
+                  })),
+                })
+                """
+            )
+        except Exception as exc:
+            snapshot["dom_state_error"] = str(exc)
+
+        try:
+            await page.screenshot(path=str(screenshot_path), full_page=True, timeout=10_000)
+            snapshot["screenshot"] = str(screenshot_path)
+        except Exception as exc:
+            snapshot["screenshot_error"] = str(exc)
+
+        state_path.write_text(json.dumps(snapshot, indent=2, ensure_ascii=True), encoding="utf-8")
+        print(f"[suno] debug capture phase={phase} screenshot={screenshot_path} state={state_path}")
+        return {"screenshot": str(screenshot_path), "state": str(state_path)}
+
+    async def _capture_browser_debug_artifacts_via_cdp(
+        self,
+        cdp_url: str,
+        phase: str,
+        extra: dict[str, Any] | None = None,
+    ) -> dict[str, str]:
+        if not cdp_url:
+            return {}
+        async with async_playwright() as p:
+            browser = await p.chromium.connect_over_cdp(cdp_url)
+            contexts = list(browser.contexts)
+            context = contexts[0] if contexts else await browser.new_context()
+            page: Page | None = None
+            for candidate in context.pages:
+                candidate_url = (candidate.url or "").lower()
+                if "suno.com/create" in candidate_url or "suno.com" in candidate_url:
+                    page = candidate
+                    break
+            if page is None:
+                page = context.pages[0] if context.pages else await context.new_page()
+            with contextlib.suppress(Exception):
+                await page.bring_to_front()
+            return await self._capture_page_debug_artifacts(page, phase, extra)
 
     @staticmethod
     def _load_dotenv_values(env_path: Path) -> dict[str, str]:
@@ -101,6 +239,25 @@ class SunoWorkflow:
             await locator.first.wait_for(state="visible", timeout=timeout_ms)
             await locator.first.fill(value, timeout=timeout_ms)
             return True
+        except Exception:
+            return False
+
+    @staticmethod
+    async def _has_visible_hcaptcha(page: Page) -> bool:
+        try:
+            return bool(
+                await page.evaluate(
+                    """
+                    () => Array.from(document.querySelectorAll('iframe')).some((iframe) => {
+                      const src = (iframe.getAttribute('src') || '').toLowerCase();
+                      if (!src.includes('hcaptcha')) return false;
+                      const rect = iframe.getBoundingClientRect();
+                      const style = getComputedStyle(iframe);
+                      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+                    })
+                    """
+                )
+            )
         except Exception:
             return False
 
@@ -433,15 +590,19 @@ class SunoWorkflow:
                             break
 
                 adv = page.get_by_role("button", name=re.compile(r"advanced", re.I))
-                if await adv.count() > 0:
+                if await adv.count() > 0 and await adv.first.is_visible():
                     await self._safe_click(adv, timeout_ms=5000)
+                    await page.wait_for_timeout(500)
 
                 lyrics = str(payload.get("lyrics", "")) or "Kurztest"
                 styles = str(payload.get("styles", "")) or "hip-hop"
                 exclude = str(payload.get("exclude_styles", ""))
                 title = str(payload.get("song_title", "")) or "API Fallback"
 
-                lyr = page.locator("textarea[placeholder*='Write some lyrics']")
+                lyr = page.locator(
+                    "textarea[placeholder*='Write some lyrics'], "
+                    "textarea[placeholder*='leave blank for instrumental']"
+                )
                 if await lyr.count() > 0:
                     await lyr.first.fill(lyrics)
                 else:
@@ -451,13 +612,42 @@ class SunoWorkflow:
                         await page.keyboard.press("Control+A")
                         await page.keyboard.type(lyrics)
 
-                st = page.locator("textarea[placeholder*='Styles'], input[placeholder*='Styles']")
-                if await st.count() > 0:
+                style_filled = False
+                for selector in (
+                    "textarea[placeholder*='Styles'], input[placeholder*='Styles']",
+                    "textarea[placeholder*='Describe the sound you want']",
+                ):
+                    st = page.locator(selector)
+                    if await st.count() == 0:
+                        continue
                     try:
                         if await st.first.is_visible():
                             await st.first.fill(styles)
+                            style_filled = True
+                            break
                     except Exception:
-                        pass
+                        continue
+
+                if not style_filled:
+                    textareas = page.locator("textarea")
+                    for idx in range(await textareas.count()):
+                        candidate = textareas.nth(idx)
+                        try:
+                            if not await candidate.is_visible():
+                                continue
+                            placeholder = (await candidate.get_attribute("placeholder") or "").lower()
+                            if (
+                                "lyrics" in placeholder
+                                or "leave blank" in placeholder
+                                or "enhance lyrics" in placeholder
+                                or "120 bpm" in placeholder
+                            ):
+                                continue
+                            await candidate.fill(styles)
+                            style_filled = True
+                            break
+                        except Exception:
+                            continue
 
                 more = page.locator("text=More Options")
                 if await more.count() > 0:
@@ -473,21 +663,30 @@ class SunoWorkflow:
 
                 title_in = page.locator("input[placeholder*='Song Title']")
                 if await title_in.count() > 0:
-                    try:
-                        if await title_in.first.is_visible():
-                            await title_in.first.fill(title)
-                    except Exception:
-                        pass
+                    for idx in range(await title_in.count()):
+                        try:
+                            current = title_in.nth(idx)
+                            if await current.is_visible():
+                                await current.fill(title)
+                                break
+                        except Exception:
+                            continue
 
-                create_btn = page.get_by_role("button", name=re.compile(r"^\s*create\s*$", re.I))
-                clicked = await self._safe_click(create_btn, timeout_ms=8000)
-                if not clicked:
-                    alt = page.locator("button:has-text('Create')")
-                    clicked = await self._safe_click(alt, timeout_ms=8000)
+                clicked = False
+                for create_btn in (
+                    page.locator("button[aria-label='Create song']"),
+                    page.get_by_role("button", name=re.compile(r"^\s*create\s*$", re.I)),
+                    page.locator("button:has-text('Create')"),
+                ):
+                    if await create_btn.count() == 0:
+                        continue
+                    clicked = await self._safe_click(create_btn, timeout_ms=8000)
+                    if clicked:
+                        break
                 if not clicked:
                     # Headless UIs can fail role-based clicks; try direct forced click on visible Create button.
                     try:
-                        forced = page.locator("button:visible:has-text('Create')").first
+                        forced = page.locator("button[aria-label='Create song'], button:visible:has-text('Create')").first
                         if await forced.count() > 0:
                             await forced.scroll_into_view_if_needed(timeout=3000)
                             await forced.click(timeout=3000, force=True)
@@ -502,16 +701,71 @@ class SunoWorkflow:
                     except Exception:
                         pass
 
-                deadline = asyncio.get_running_loop().time() + 20.0
+                base_wait_seconds = 20.0
+                manual_wait_seconds = max(
+                    base_wait_seconds,
+                    float(str(os.environ.get("SUNO_MANUAL_CAPTCHA_WAIT_SECONDS", "180")).strip() or "180"),
+                )
+                deadline = asyncio.get_running_loop().time() + base_wait_seconds
+                challenge_seen = False
+                challenge_logged = False
                 while asyncio.get_running_loop().time() < deadline:
                     token = token_box.get("token")
                     if isinstance(token, str) and token.startswith("P1_"):
                         print("[suno] harvested fresh P1 token via CDP")
                         return token
+                    captcha_visible = await self._has_visible_hcaptcha(page)
+                    if captcha_visible:
+                        challenge_seen = True
+                        deadline = max(deadline, asyncio.get_running_loop().time() + manual_wait_seconds)
+                        if not challenge_logged:
+                            challenge_logged = True
+                            print(
+                                "[suno] hCaptcha challenge visible after Create; waiting for manual completion "
+                                f"for up to {int(manual_wait_seconds)}s"
+                            )
+                            with contextlib.suppress(Exception):
+                                await self._capture_page_debug_artifacts(
+                                    page,
+                                    "manual_captcha_wait",
+                                    {
+                                        "wait_seconds": manual_wait_seconds,
+                                        "song_title": title,
+                                        "styles": styles[:200],
+                                    },
+                                )
                     await asyncio.sleep(0.1)
 
                 if not clicked:
+                    with contextlib.suppress(Exception):
+                        await self._capture_page_debug_artifacts(
+                            page,
+                            "p1_create_not_triggered",
+                            {
+                                "error": "create_button_not_triggered",
+                                "song_title": title,
+                                "styles": styles[:200],
+                            },
+                        )
                     raise RuntimeError("Could not trigger Create while harvesting P1 token.")
+
+                with contextlib.suppress(Exception):
+                    await self._capture_page_debug_artifacts(
+                        page,
+                        "p1_token_timeout",
+                        {
+                            "error": "p1_token_not_observed_after_create",
+                            "challenge_seen": challenge_seen,
+                            "song_title": title,
+                            "styles": styles[:200],
+                            "exclude_styles": exclude[:200],
+                        },
+                    )
+                if challenge_seen:
+                    raise RuntimeError(
+                        "Manual captcha required: hCaptcha challenge remained visible and no fresh P1 token was observed. "
+                        "Complete the challenge in the open browser and retry generation."
+                    )
             finally:
                 try:
                     await context.unroute("**/api/generate/v2-web/", _capture_and_abort)
@@ -543,7 +797,7 @@ class SunoWorkflow:
         target_url: str = "https://suno.com/create",
         close_browser_after_login: bool = False,
     ) -> dict[str, Any]:
-        dotenv_values = self._load_dotenv_values(Path(".env"))
+        dotenv_values = self._load_dotenv_values(self._plugin_dotenv_path())
         email = (os.environ.get("SUNO_GOOGLE_EMAIL", "").strip() or dotenv_values.get("SUNO_GOOGLE_EMAIL", "").strip() or None)
         password = (os.environ.get("SUNO_GOOGLE_PASSWORD", "").strip() or dotenv_values.get("SUNO_GOOGLE_PASSWORD", "").strip() or None)
 
@@ -665,21 +919,45 @@ class SunoWorkflow:
                     if ok2 or status2 == 200:
                         ok, status, info = True, status2, info2
                     else:
+                        with contextlib.suppress(Exception):
+                            await self._capture_page_debug_artifacts(
+                                page,
+                                "login_buttons_not_clicked",
+                                {"status": status2, "info": info2},
+                            )
                         return {"ok": False, "error": "login_buttons_not_clicked", "status": status2, "info": info2}
 
                 if not ok:
                     redirect_ok = await self._wait_for_google_redirect(context, page, timeout_s=70)
                     if not redirect_ok:
+                        with contextlib.suppress(Exception):
+                            await self._capture_page_debug_artifacts(
+                                page,
+                                "google_redirect_not_detected",
+                                {"status": status, "info": info},
+                            )
                         return {"ok": False, "error": "google_redirect_not_detected", "status": status, "info": info}
 
                     google_page = await self._find_google_page(context, page)
                     if google_page is None:
+                        with contextlib.suppress(Exception):
+                            await self._capture_page_debug_artifacts(
+                                page,
+                                "google_page_not_found",
+                                {"status": status, "info": info},
+                            )
                         return {"ok": False, "error": "google_page_not_found", "status": status, "info": info}
 
                     await self._fill_google_credentials(google_page, email, password)
                     print(f"[suno] waiting for login session ({int(wait_seconds)}s)")
                     ok, status, info = await self._wait_until_logged_in(context, wait_seconds)
                     if not ok and isinstance(info, str) and info.startswith("auth_denied:"):
+                        with contextlib.suppress(Exception):
+                            await self._capture_page_debug_artifacts(
+                                google_page,
+                                "authorization_denied",
+                                {"status": status, "info": info},
+                            )
                         return {"ok": False, "error": "authorization_denied", "status": status, "info": info}
 
             # Trigger authenticated requests once.
@@ -1670,6 +1948,25 @@ class SunoWorkflow:
                 timeout=60,
             )
             if check.status_code >= 400:
+                debug_payload = {
+                    "phase": "captcha_check_failed",
+                    "status": check.status_code,
+                    "body": check.text[:2000],
+                    "has_browser_cdp_url": bool(browser_cdp_url),
+                    "song_title": str(payload.get("song_title", ""))[:200],
+                    "styles": str(payload.get("styles", ""))[:400],
+                }
+                debug_path = self._write_debug_json("captcha_check_failed", debug_payload)
+                print(f"[suno] wrote debug state for captcha failure: {debug_path}")
+                if browser_cdp_url:
+                    with contextlib.suppress(Exception):
+                        asyncio.run(
+                            self._capture_browser_debug_artifacts_via_cdp(
+                                browser_cdp_url,
+                                "captcha_check_failed",
+                                debug_payload,
+                            )
+                        )
                 raise RuntimeError(f"Captcha check failed: status={check.status_code}, body={check.text[:500]}")
             try:
                 check_data = check.json()
@@ -1681,6 +1978,24 @@ class SunoWorkflow:
                     req_body["token"] = fresh
                     has_captcha_token = True
                 elif not has_captcha_token:
+                    debug_payload = {
+                        "phase": "captcha_token_required",
+                        "check_data": check_data,
+                        "has_browser_cdp_url": bool(browser_cdp_url),
+                        "auto_refresh_p1": bool(auto_refresh_p1),
+                        "song_title": str(payload.get("song_title", ""))[:200],
+                    }
+                    debug_path = self._write_debug_json("captcha_token_required", debug_payload)
+                    print(f"[suno] wrote debug state for missing captcha token: {debug_path}")
+                    if browser_cdp_url:
+                        with contextlib.suppress(Exception):
+                            asyncio.run(
+                                self._capture_browser_debug_artifacts_via_cdp(
+                                    browser_cdp_url,
+                                    "captcha_token_required",
+                                    debug_payload,
+                                )
+                            )
                     raise RuntimeError(
                         "Generate blocked: captcha token required (api/c/check returned required=true) and no P1 token "
                         "was present in the capture payload. Provide --browser-cdp-url for auto refresh or run one browser generate first."

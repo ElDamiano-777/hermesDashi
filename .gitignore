@@ -43,3 +43,5 @@ node/
 node/
 hermes-old-setup/
 .git-backups/
+profiles/suno/plugins/suno-local/profile/
+profiles/suno/plugins/suno-local/profile-reset-backups/
